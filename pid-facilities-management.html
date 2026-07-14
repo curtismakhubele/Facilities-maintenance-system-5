@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PID Facilities Management System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EEF1EF;
+    --panel:#FFFFFF;
+    --ink:#131A22;
+    --ink-soft:#5B6570;
+    --sidebar:#141B26;
+    --sidebar-soft:#8C97A5;
+    --border:#DCE1DD;
+    --accent:#D98C2B;
+    --accent-ink:#5A3B0E;
+    --good:#2F8F7A;
+    --good-bg:#E4F2EE;
+    --warn:#D98C2B;
+    --warn-bg:#FBEEDC;
+    --crit:#C1443C;
+    --crit-bg:#FBE7E5;
+    --info:#3465A4;
+    --info-bg:#E6EEF7;
+    --radius:10px;
+    --font-display:'Space Grotesk',sans-serif;
+    --font-body:'IBM Plex Sans',sans-serif;
+    --font-mono:'IBM Plex Mono',monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.5;}
+  ::selection{background:var(--accent);color:#fff;}
+
+  /* Layout */
+  .app{display:grid;grid-template-columns:236px 1fr;min-height:100vh;}
+  .sidebar{background:var(--sidebar);color:var(--sidebar-soft);padding:22px 14px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .brand{display:flex;align-items:center;gap:10px;padding:4px 8px 22px 8px;border-bottom:1px solid rgba(255,255,255,0.08);margin-bottom:16px;}
+  .brand-mark{width:34px;height:34px;border-radius:8px;background:conic-gradient(from 220deg,var(--accent),#8C5A16,var(--accent));display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-weight:600;color:#141B26;font-size:13px;flex:none;}
+  .brand-text{line-height:1.15;}
+  .brand-text .name{font-family:var(--font-display);font-weight:700;color:#fff;font-size:15px;letter-spacing:0.2px;}
+  .brand-text .sub{font-size:10.5px;color:var(--sidebar-soft);letter-spacing:0.6px;text-transform:uppercase;}
+
+  nav.groups{display:flex;flex-direction:column;gap:18px;}
+  .navgroup .label{font-size:10.5px;text-transform:uppercase;letter-spacing:0.8px;color:#5A6472;padding:0 10px 6px;}
+  .navitem{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;cursor:pointer;font-size:13.5px;color:var(--sidebar-soft);transition:background 0.15s,color 0.15s;}
+  .navitem:hover{background:rgba(255,255,255,0.06);color:#fff;}
+  .navitem.active{background:rgba(217,140,43,0.16);color:#fff;}
+  .navitem.active .dot{background:var(--accent);}
+  .navitem .dot{width:6px;height:6px;border-radius:50%;background:#3E4956;flex:none;}
+  .navitem .badge{margin-left:auto;background:rgba(255,255,255,0.08);color:#C7CFD8;font-family:var(--font-mono);font-size:10.5px;padding:1px 6px;border-radius:20px;}
+  .navitem.critical .badge{background:var(--crit);color:#fff;}
+
+  main{padding:26px 34px 60px;max-width:1180px;}
+  .topbar{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;gap:20px;}
+  .topbar h1{font-family:var(--font-display);font-size:22px;margin:0 0 4px;letter-spacing:0.1px;}
+  .topbar .meta{color:var(--ink-soft);font-size:13px;}
+  .search{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:var(--font-mono);font-size:12.5px;color:var(--ink-soft);min-width:230px;}
+  .search input{border:none;outline:none;background:transparent;font-family:var(--font-mono);font-size:12.5px;width:100%;color:var(--ink);}
+
+  section.view{display:none;}
+  section.view.active{display:block;}
+
+  /* KPI cards */
+  .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:28px;}
+  .kpi{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px 16px 14px;display:flex;gap:14px;align-items:center;}
+  .gauge{width:52px;height:52px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;position:relative;}
+  .gauge::before{content:'';position:absolute;inset:6px;background:var(--panel);border-radius:50%;}
+  .gauge span{position:relative;font-family:var(--font-mono);font-weight:600;font-size:13px;z-index:1;}
+  .kpi-label{font-size:11.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:2px;}
+  .kpi-value{font-family:var(--font-display);font-size:19px;font-weight:600;}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px;}
+  .panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
+  .panel-head h2{font-family:var(--font-display);font-size:15.5px;margin:0;}
+  .panel-head .sub{color:var(--ink-soft);font-size:12.5px;margin-top:2px;}
+
+  .btn{font-family:var(--font-body);font-weight:600;font-size:13px;border-radius:7px;padding:8px 14px;border:1px solid transparent;cursor:pointer;transition:filter 0.15s,background 0.15s;}
+  .btn-primary{background:var(--ink);color:#fff;}
+  .btn-primary:hover{filter:brightness(1.15);}
+  .btn-accent{background:var(--accent);color:#20140300;}
+  .btn-accent{color:#2A1A02;}
+  .btn-accent:hover{filter:brightness(1.06);}
+  .btn-ghost{background:transparent;border:1px solid var(--border);color:var(--ink);}
+  .btn-ghost:hover{background:var(--bg);}
+  .btn-sm{padding:5px 10px;font-size:12px;border-radius:6px;}
+  .btn-danger{background:transparent;color:var(--crit);border:1px solid #EFC9C6;}
+  .btn-danger:hover{background:var(--crit-bg);}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  thead th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-soft);border-bottom:1px solid var(--border);padding:0 10px 8px;font-weight:600;}
+  tbody td{padding:10px;border-bottom:1px solid var(--border);vertical-align:middle;}
+  tbody tr:last-child td{border-bottom:none;}
+  tbody tr:hover{background:#FAFBF9;}
+  .tag{font-family:var(--font-mono);font-size:11.5px;background:var(--bg);border:1px solid var(--border);padding:2px 7px;border-radius:5px;letter-spacing:0.2px;}
+
+  .pill{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:3px 9px;border-radius:20px;}
+  .pill.good{background:var(--good-bg);color:var(--good);}
+  .pill.warn{background:var(--warn-bg);color:#9A5F14;}
+  .pill.crit{background:var(--crit-bg);color:var(--crit);}
+  .pill.info{background:var(--info-bg);color:var(--info);}
+  .pill.neutral{background:#EEF0EC;color:#5B6570;}
+  .pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor;}
+
+  .empty{padding:34px 10px;text-align:center;color:var(--ink-soft);}
+  .empty .big{font-family:var(--font-mono);font-size:12px;letter-spacing:0.5px;text-transform:uppercase;color:#9AA3AC;margin-bottom:6px;}
+
+  /* Modal */
+  .overlay{position:fixed;inset:0;background:rgba(15,20,26,0.5);display:none;align-items:flex-start;justify-content:center;padding:60px 20px;z-index:50;overflow-y:auto;}
+  .overlay.active{display:flex;}
+  .modal{background:var(--panel);border-radius:12px;width:100%;max-width:520px;padding:24px;}
+  .modal h3{font-family:var(--font-display);margin:0 0 4px;font-size:17px;}
+  .modal .modal-sub{color:var(--ink-soft);font-size:12.5px;margin-bottom:18px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12px;font-weight:600;color:var(--ink-soft);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.3px;}
+  .field input,.field select,.field textarea{width:100%;padding:9px 10px;border:1px solid var(--border);border-radius:7px;font-family:var(--font-body);font-size:13.5px;background:#FCFDFB;color:var(--ink);}
+  .field textarea{resize:vertical;min-height:64px;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px;}
+
+  .toast{position:fixed;bottom:22px;right:22px;background:var(--ink);color:#fff;padding:11px 16px;border-radius:8px;font-size:13px;font-weight:500;opacity:0;transform:translateY(8px);transition:opacity 0.2s,transform 0.2s;z-index:60;}
+  .toast.show{opacity:1;transform:translateY(0);}
+
+  .grid-2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start;}
+  .list-simple{display:flex;flex-direction:column;gap:0;}
+  .list-simple .row{display:flex;justify-content:space-between;align-items:center;padding:10px 2px;border-bottom:1px solid var(--border);}
+  .list-simple .row:last-child{border-bottom:none;}
+  .list-simple .row .t{font-weight:500;}
+  .list-simple .row .s{font-size:12px;color:var(--ink-soft);}
+
+  .checklist{display:flex;flex-direction:column;gap:8px;}
+  .checklist .item{display:flex;align-items:center;gap:9px;padding:8px 10px;background:var(--bg);border-radius:7px;}
+  .checklist .item input{width:16px;height:16px;}
+  .checklist .item.done .t{text-decoration:line-through;color:var(--ink-soft);}
+
+  .bars{display:flex;flex-direction:column;gap:10px;}
+  .bar-row{display:grid;grid-template-columns:110px 1fr 34px;align-items:center;gap:10px;font-size:12.5px;}
+  .bar-track{background:var(--bg);border-radius:5px;height:9px;overflow:hidden;}
+  .bar-fill{height:100%;border-radius:5px;background:var(--accent);}
+
+  .banner{display:flex;gap:12px;align-items:flex-start;background:var(--info-bg);border:1px solid #C7DBEF;border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:#2A4A73;}
+  .banner strong{display:block;margin-bottom:2px;color:#1F3A5C;}
+
+  .integration-card{display:flex;align-items:center;justify-content:space-between;border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px;}
+  .integration-card .left{display:flex;gap:14px;align-items:center;}
+  .ms-icon{width:38px;height:38px;border-radius:8px;display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:2px;padding:6px;background:#fff;border:1px solid var(--border);}
+  .ms-icon span{background:var(--accent);}
+  .ms-icon span:nth-child(1){background:#EA5A2B;}
+  .ms-icon span:nth-child(2){background:#3FA53A;}
+  .ms-icon span:nth-child(3){background:#3E9EE0;}
+  .ms-icon span:nth-child(4){background:#F4B400;}
+
+  select{-webkit-appearance:none;appearance:none;}
+
+  @media (max-width:900px){
+    .app{grid-template-columns:1fr;}
+    .sidebar{position:relative;height:auto;}
+    .kpi-row{grid-template-columns:1fr 1fr;}
+    .grid-2{grid-template-columns:1fr;}
+    main{padding:20px;}
+  }
+
+  a{color:inherit;}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">PID</div>
+      <div class="brand-text">
+        <div class="name">PID Facilities</div>
+        <div class="sub">Management System</div>
+      </div>
+    </div>
+    <nav class="groups">
+      <div class="navgroup">
+        <div class="label">Overview</div>
+        <div class="navitem active" data-view="overview"><span class="dot"></span>Dashboard</div>
+      </div>
+      <div class="navgroup">
+        <div class="label">Operations</div>
+        <div class="navitem" data-view="assets"><span class="dot"></span>Assets<span class="badge" id="nav-assets-count">0</span></div>
+        <div class="navitem" data-view="workorders"><span class="dot"></span>Work Orders<span class="badge" id="nav-wo-count">0</span></div>
+        <div class="navitem" data-view="maintenance"><span class="dot"></span>Maintenance<span class="badge" id="nav-pm-count">0</span></div>
+        <div class="navitem" data-view="projects"><span class="dot"></span>Projects<span class="badge" id="nav-proj-count">0</span></div>
+      </div>
+      <div class="navgroup">
+        <div class="label">Compliance</div>
+        <div class="navitem" data-view="ohsa"><span class="dot"></span>OHSA &amp; Safety<span class="badge" id="nav-ohsa-count">0</span></div>
+        <div class="navitem" data-view="reports"><span class="dot"></span>Reports</div>
+      </div>
+      <div class="navgroup">
+        <div class="label">Connected</div>
+        <div class="navitem" data-view="email"><span class="dot"></span>Microsoft 365</div>
+        <div class="navitem" data-view="settings"><span class="dot"></span>Settings</div>
+      </div>
+    </nav>
+  </aside>
+
+  <main>
+
+    <!-- OVERVIEW -->
+    <section class="view active" id="view-overview">
+      <div class="topbar">
+        <div><h1>Facilities Overview</h1><div class="meta" id="overview-date"></div></div>
+        <div class="search"><span>⌕</span><input placeholder="Look up asset tag, WO#, or location…" id="global-search"></div>
+      </div>
+
+      <div class="kpi-row" id="kpi-row"></div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head">
+            <div><h2>Work orders due soonest</h2><div class="sub">Across all assets and priorities</div></div>
+          </div>
+          <table><thead><tr><th>WO#</th><th>Title</th><th>Asset</th><th>Priority</th><th>Due</th><th>Status</th></tr></thead>
+          <tbody id="overview-wo-body"></tbody></table>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h2>Assets by status</h2></div></div>
+          <div class="bars" id="asset-status-bars"></div>
+          <div class="panel-head" style="margin-top:20px;"><div><h2>Open safety items</h2></div></div>
+          <div class="list-simple" id="overview-safety-list"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ASSETS -->
+    <section class="view" id="view-assets">
+      <div class="topbar">
+        <div><h1>Asset Register</h1><div class="meta">Every tracked asset, its location and operating status</div></div>
+        <button class="btn btn-accent" onclick="openAssetModal()">+ Register asset</button>
+      </div>
+      <div class="panel">
+        <table><thead><tr><th>Tag</th><th>Name</th><th>Category</th><th>Location</th><th>Status</th><th>Value</th><th></th></tr></thead>
+        <tbody id="assets-body"></tbody></table>
+        <div class="empty" id="assets-empty" style="display:none;"><div class="big">No assets yet</div>Register your first asset to start tracking it.</div>
+      </div>
+    </section>
+
+    <!-- WORK ORDERS -->
+    <section class="view" id="view-workorders">
+      <div class="topbar">
+        <div><h1>Work Orders</h1><div class="meta">Allocation, tracking, and completion of maintenance work</div></div>
+        <button class="btn btn-accent" onclick="openWOModal()">+ New work order</button>
+      </div>
+      <div class="panel">
+        <table><thead><tr><th>WO#</th><th>Title</th><th>Asset</th><th>Type</th><th>Priority</th><th>Assigned to</th><th>Due</th><th>Status</th><th></th></tr></thead>
+        <tbody id="wo-body"></tbody></table>
+        <div class="empty" id="wo-empty" style="display:none;"><div class="big">No work orders yet</div>Create one to allocate work to your team.</div>
+      </div>
+    </section>
+
+    <!-- MAINTENANCE -->
+    <section class="view" id="view-maintenance">
+      <div class="topbar">
+        <div><h1>Preventive Maintenance</h1><div class="meta">Scheduled recurring maintenance by asset</div></div>
+        <button class="btn btn-accent" onclick="openPMModal()">+ Schedule task</button>
+      </div>
+      <div class="panel">
+        <table><thead><tr><th>Asset</th><th>Task</th><th>Frequency</th><th>Last done</th><th>Next due</th><th>Assigned to</th><th></th></tr></thead>
+        <tbody id="pm-body"></tbody></table>
+        <div class="empty" id="pm-empty" style="display:none;"><div class="big">No PM schedules yet</div>Add a recurring task to keep assets running.</div>
+      </div>
+    </section>
+
+    <!-- PROJECTS -->
+    <section class="view" id="view-projects">
+      <div class="topbar">
+        <div><h1>Projects</h1><div class="meta">Capital works and multi-step facilities initiatives</div></div>
+        <button class="btn btn-accent" onclick="openProjectModal()">+ New project</button>
+      </div>
+      <div id="projects-list"></div>
+      <div class="empty panel" id="projects-empty" style="display:none;"><div class="big">No projects yet</div>Start one to track milestones and budget.</div>
+    </section>
+
+    <!-- OHSA -->
+    <section class="view" id="view-ohsa">
+      <div class="topbar">
+        <div><h1>OHSA &amp; Safety</h1><div class="meta">Incident log and safety inspections</div></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-ghost" onclick="openInspectionModal()">+ Log inspection</button>
+          <button class="btn btn-accent" onclick="openIncidentModal()">+ Report incident</button>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h2>Incidents</h2><div class="sub">All reported occupational health &amp; safety incidents</div></div></div>
+        <table><thead><tr><th>ID</th><th>Date</th><th>Type</th><th>Location</th><th>Severity</th><th>Status</th><th></th></tr></thead>
+        <tbody id="incidents-body"></tbody></table>
+        <div class="empty" id="incidents-empty" style="display:none;"><div class="big">No incidents logged</div>Good — keep it that way.</div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h2>Inspections</h2><div class="sub">Scheduled and completed safety walkthroughs</div></div></div>
+        <table><thead><tr><th>ID</th><th>Area</th><th>Date</th><th>Inspector</th><th>Result</th><th></th></tr></thead>
+        <tbody id="inspections-body"></tbody></table>
+        <div class="empty" id="inspections-empty" style="display:none;"><div class="big">No inspections logged</div>Record your first walkthrough.</div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="view" id="view-reports">
+      <div class="topbar">
+        <div><h1>Reports</h1><div class="meta">Rolled-up view of the whole system, generated live from your data</div></div>
+      </div>
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-head"><div><h2>Work order throughput</h2><div class="sub">By status</div></div></div>
+          <div class="bars" id="report-wo-bars"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h2>Key figures</h2></div></div>
+          <div class="list-simple" id="report-figures"></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h2>Overdue &amp; at-risk</h2><div class="sub">Work orders and PM tasks past their due date</div></div></div>
+        <table><thead><tr><th>Type</th><th>Ref</th><th>Title/Task</th><th>Asset</th><th>Due</th></tr></thead>
+        <tbody id="report-overdue-body"></tbody></table>
+        <div class="empty" id="report-overdue-empty" style="display:none;"><div class="big">Nothing overdue</div>Everything is on schedule.</div>
+      </div>
+    </section>
+
+    <!-- EMAIL / MS365 -->
+    <section class="view" id="view-email">
+      <div class="topbar">
+        <div><h1>Microsoft 365 Connection</h1><div class="meta">Link your work email and calendar to work orders and inspections</div></div>
+      </div>
+
+      <div class="banner">
+        <span>ⓘ</span>
+        <div><strong>This section is a working interface, not a live connection.</strong>
+        Connecting a real Microsoft work account requires an Azure AD app registration and a secure backend to hold the OAuth tokens — that can't run safely inside a browser-only app like this one. What's below is fully built and ready to wire up once that backend exists. In the meantime, <strong>Claude for Outlook</strong> already does real inbox triage against your actual Microsoft account today — worth using in parallel.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><h2>Connection status</h2></div></div>
+        <div class="integration-card">
+          <div class="left">
+            <div class="ms-icon"><span></span><span></span><span></span><span></span></div>
+            <div>
+              <div style="font-weight:600;">Outlook Mail &amp; Calendar</div>
+              <div style="font-size:12px;color:var(--ink-soft);">Not connected — no live account linked</div>
+            </div>
+          </div>
+          <button class="btn btn-ghost" disabled title="Requires backend OAuth setup">Connect account</button>
+        </div>
+        <div class="field" style="margin-top:16px;">
+          <label>Work email (for reference on generated notices)</label>
+          <input type="email" id="ms-email-input" placeholder="you@company.com">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="saveEmail()">Save</button>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><div><h2>How work orders will route to email</h2><div class="sub">Preview of the notification model once connected</div></div></div>
+        <div class="list-simple">
+          <div class="row"><div><div class="t">New work order assigned</div><div class="s">Emails the assignee with WO#, asset, priority and due date</div></div><span class="pill neutral">Planned</span></div>
+          <div class="row"><div><div class="t">Work order overdue</div><div class="s">Daily digest to the asset owner and facilities manager</div></div><span class="pill neutral">Planned</span></div>
+          <div class="row"><div><div class="t">PM task due in 3 days</div><div class="s">Calendar invite created on the assignee's Outlook calendar</div></div><span class="pill neutral">Planned</span></div>
+          <div class="row"><div><div class="t">Safety incident reported</div><div class="s">Immediate email to the OHSA officer distribution list</div></div><span class="pill neutral">Planned</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view" id="view-settings">
+      <div class="topbar"><div><h1>Settings</h1><div class="meta">Data and system preferences</div></div></div>
+      <div class="panel">
+        <div class="panel-head"><div><h2>Data storage</h2></div></div>
+        <p style="color:var(--ink-soft);margin-top:0;">All records in this app are saved to your Claude account's private artifact storage and will still be here next time you open this app. This data is <strong>only visible to you</strong>, not shared with other users.</p>
+        <button class="btn btn-danger btn-sm" onclick="resetData()">Clear all data</button>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><div><h2>Organization</h2></div></div>
+        <div class="field"><label>Facility / site name</label><input id="org-name-input" placeholder="e.g. Head Office — Pretoria"></div>
+        <button class="btn btn-primary btn-sm" onclick="saveOrgName()">Save</button>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="overlay" id="overlay"><div class="modal" id="modal-content"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- storage ---------- */
+const STORE_KEY = 'pid-fms-data-v1';
+let DATA = {
+  orgName:'', msEmail:'',
+  assets:[], workOrders:[], pmTasks:[], projects:[], incidents:[], inspections:[],
+  seq:{asset:0,wo:0,pm:0,proj:0,inc:0,insp:0}
+};
+
+async function loadData(){
+  try{
+    const res = await window.storage.get(STORE_KEY, false);
+    if(res && res.value){ DATA = JSON.parse(res.value); }
+    else { seedDemoData(); await persist(); }
+  }catch(e){
+    seedDemoData();
+  }
+  renderAll();
+}
+async function persist(){
+  try{ await window.storage.set(STORE_KEY, JSON.stringify(DATA), false); }
+  catch(e){ showToast('Could not save — data will not persist'); }
+}
+function nextId(prefix, key){
+  DATA.seq[key] = (DATA.seq[key]||0) + 1;
+  return prefix + '-' + String(DATA.seq[key]).padStart(4,'0');
+}
+
+/* ---------- demo seed (first run only) ---------- */
+function seedDemoData(){
+  DATA.orgName = '';
+  const today = new Date();
+  const d = (n)=>{ const t = new Date(today); t.setDate(t.getDate()+n); return t.toISOString().slice(0,10); };
+  DATA.assets = [
+    {id:nextId('AST','asset'), name:'Rooftop AHU 1', category:'HVAC', location:'Building A – Roof', status:'operational', purchaseDate:'2021-03-10', value:185000},
+    {id:nextId('AST','asset'), name:'Backup Generator', category:'Electrical', location:'Building A – Basement', status:'maintenance', purchaseDate:'2019-11-02', value:420000},
+    {id:nextId('AST','asset'), name:'Fire Pump Set', category:'Fire Safety', location:'Building B – Plant Room', status:'operational', purchaseDate:'2020-06-18', value:96000},
+    {id:nextId('AST','asset'), name:'Lift 2', category:'Vertical Transport', location:'Building A – Core', status:'down', purchaseDate:'2018-01-25', value:610000},
+  ];
+  DATA.workOrders = [
+    {id:nextId('WO','wo'), title:'Lift 2 – motor fault', assetId:DATA.assets[3].id, type:'corrective', priority:'critical', status:'in_progress', assignedTo:'T. Nkosi', createdDate:d(-2), dueDate:d(1), description:'Lift stopped between floors 3-4, motor overheating.'},
+    {id:nextId('WO','wo'), title:'Generator load test', assetId:DATA.assets[1].id, type:'preventive', priority:'medium', status:'open', assignedTo:'S. Botha', createdDate:d(-1), dueDate:d(4), description:'Quarterly load bank test.'},
+    {id:nextId('WO','wo'), title:'AHU filter replacement', assetId:DATA.assets[0].id, type:'preventive', priority:'low', status:'completed', assignedTo:'T. Nkosi', createdDate:d(-10), dueDate:d(-6), description:'Routine filter swap.'},
+  ];
+  DATA.pmTasks = [
+    {id:nextId('PM','pm'), assetId:DATA.assets[2].id, task:'Fire pump weekly run test', frequency:'Weekly', lastDone:d(-4), nextDue:d(3), assignedTo:'S. Botha'},
+    {id:nextId('PM','pm'), assetId:DATA.assets[0].id, task:'AHU belt inspection', frequency:'Monthly', lastDone:d(-20), nextDue:d(-1), assignedTo:'T. Nkosi'},
+  ];
+  DATA.projects = [
+    {id:nextId('PRJ','proj'), name:'Lift modernization – Building A', status:'in_progress', startDate:d(-30), endDate:d(60), budget:1200000,
+      tasks:[{id:'t1',name:'Vendor selection',done:true},{id:'t2',name:'Site survey',done:true},{id:'t3',name:'Parts procurement',done:false},{id:'t4',name:'Installation',done:false}]}
+  ];
+  DATA.incidents = [
+    {id:nextId('INC','inc'), date:d(-5), type:'Near miss', location:'Building B – Loading bay', severity:'low', description:'Forklift near miss with pedestrian, no contact.', status:'closed', reportedBy:'S. Botha'}
+  ];
+  DATA.inspections = [
+    {id:nextId('INSP','insp'), area:'Building A – Fire escapes', date:d(-7), inspector:'T. Nkosi', result:'pass', notes:'All clear, signage intact.'}
+  ];
+}
+
+/* ---------- helpers ---------- */
+function assetById(id){ return DATA.assets.find(a=>a.id===id); }
+function fmtDate(s){ if(!s) return '—'; const dt=new Date(s+'T00:00:00'); return dt.toLocaleDateString('en-ZA',{day:'2-digit',month:'short',year:'numeric'}); }
+function fmtMoney(n){ return 'R ' + Number(n||0).toLocaleString('en-ZA'); }
+function daysUntil(s){ const t=new Date(s+'T00:00:00'); const now=new Date(); now.setHours(0,0,0,0); return Math.round((t-now)/86400000); }
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(window._toastTimer); window._toastTimer=setTimeout(()=>t.classList.remove('show'),2200); }
+
+const STATUS_PILL = {
+  operational:['good','Operational'], maintenance:['warn','In maintenance'], down:['crit','Down'],
+  open:['info','Open'], in_progress:['warn','In progress'], completed:['good','Completed'], on_hold:['neutral','On hold'],
+  low:['neutral','Low'], medium:['info','Medium'], high:['warn','High'], critical:['crit','Critical'],
+  pass:['good','Pass'], fail:['crit','Fail'], closed:['neutral','Closed'], planned:['neutral','Planned']
+};
+function pill(key){ const [cls,label] = STATUS_PILL[key] || ['neutral', key]; return `<span class="pill ${cls}">${label}</span>`; }
+
+/* ---------- nav ---------- */
+document.querySelectorAll('.navitem').forEach(item=>{
+  item.addEventListener('click', ()=>{
+    document.querySelectorAll('.navitem').forEach(i=>i.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    item.classList.add('active');
+    document.getElementById('view-'+item.dataset.view).classList.add('active');
+  });
+});
+
+/* ---------- modal engine ---------- */
+function openModal(html){
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('overlay').classList.add('active');
+}
+function closeModal(){ document.getElementById('overlay').classList.remove('active'); }
+document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.id==='overlay') closeModal(); });
+
+/* ---------- ASSETS ---------- */
+function openAssetModal(){
+  openModal(`
+    <h3>Register asset</h3><div class="modal-sub">Add a new tracked facility asset</div>
+    <div class="field"><label>Name</label><input id="f-name" placeholder="e.g. Rooftop AHU 2"></div>
+    <div class="row2">
+      <div class="field"><label>Category</label><input id="f-cat" placeholder="e.g. HVAC"></div>
+      <div class="field"><label>Location</label><input id="f-loc" placeholder="e.g. Building A – Roof"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Status</label><select id="f-status"><option value="operational">Operational</option><option value="maintenance">In maintenance</option><option value="down">Down</option></select></div>
+      <div class="field"><label>Value (R)</label><input id="f-value" type="number" placeholder="0"></div>
+    </div>
+    <div class="field"><label>Purchase date</label><input id="f-date" type="date"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-accent" onclick="saveAsset()">Register asset</button></div>
+  `);
+}
+function saveAsset(){
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ showToast('Asset name is required'); return; }
+  DATA.assets.push({
+    id: nextId('AST','asset'), name,
+    category: document.getElementById('f-cat').value.trim() || 'Uncategorized',
+    location: document.getElementById('f-loc').value.trim() || '—',
+    status: document.getElementById('f-status').value,
+    value: Number(document.getElementById('f-value').value) || 0,
+    purchaseDate: document.getElementById('f-date').value || ''
+  });
+  persist(); closeModal(); renderAll(); showToast('Asset registered');
+}
+function deleteAsset(id){
+  DATA.assets = DATA.assets.filter(a=>a.id!==id);
+  persist(); renderAll(); showToast('Asset removed');
+}
+function renderAssets(){
+  const body = document.getElementById('assets-body');
+  document.getElementById('nav-assets-count').textContent = DATA.assets.length;
+  if(DATA.assets.length===0){ body.innerHTML=''; document.getElementById('assets-empty').style.display='block'; return; }
+  document.getElementById('assets-empty').style.display='none';
+  body.innerHTML = DATA.assets.map(a=>`
+    <tr>
+      <td><span class="tag">${a.id}</span></td>
+      <td>${a.name}</td>
+      <td>${a.category}</td>
+      <td>${a.location}</td>
+      <td>${pill(a.status)}</td>
+      <td style="font-family:var(--font-mono);">${fmtMoney(a.value)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteAsset('${a.id}')">Remove</button></td>
+    </tr>`).join('');
+}
+
+/* ---------- WORK ORDERS ---------- */
+function assetOptions(selectedId){
+  return DATA.assets.map(a=>`<option value="${a.id}" ${a.id===selectedId?'selected':''}>${a.name} (${a.id})</option>`).join('') || '<option value="">No assets registered</option>';
+}
+function openWOModal(){
+  openModal(`
+    <h3>New work order</h3><div class="modal-sub">Allocate work to a team member</div>
+    <div class="field"><label>Title</label><input id="f-title" placeholder="e.g. Replace AHU belt"></div>
+    <div class="row2">
+      <div class="field"><label>Asset</label><select id="f-asset">${assetOptions()}</select></div>
+      <div class="field"><label>Type</label><select id="f-type"><option value="corrective">Corrective</option><option value="preventive">Preventive</option><option value="project">Project-linked</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Priority</label><select id="f-priority"><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
+      <div class="field"><label>Assigned to</label><input id="f-assignee" placeholder="Name"></div>
+    </div>
+    <div class="field"><label>Due date</label><input id="f-due" type="date"></div>
+    <div class="field"><label>Description</label><textarea id="f-desc" placeholder="What needs to be done"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-accent" onclick="saveWO()">Create work order</button></div>
+  `);
+}
+function saveWO(){
+  const title = document.getElementById('f-title').value.trim();
+  if(!title){ showToast('Title is required'); return; }
+  DATA.workOrders.push({
+    id: nextId('WO','wo'), title,
+    assetId: document.getElementById('f-asset').value,
+    type: document.getElementById('f-type').value,
+    priority: document.getElementById('f-priority').value,
+    status: 'open',
+    assignedTo: document.getElementById('f-assignee').value.trim() || 'Unassigned',
+    createdDate: new Date().toISOString().slice(0,10),
+    dueDate: document.getElementById('f-due').value || '',
+    description: document.getElementById('f-desc').value.trim()
+  });
+  persist(); closeModal(); renderAll(); showToast('Work order created');
+}
+function cycleWOStatus(id){
+  const order = ['open','in_progress','completed','on_hold'];
+  const wo = DATA.workOrders.find(w=>w.id===id);
+  wo.status = order[(order.indexOf(wo.status)+1)%order.length];
+  persist(); renderAll();
+}
+function deleteWO(id){ DATA.workOrders = DATA.workOrders.filter(w=>w.id!==id); persist(); renderAll(); showToast('Work order removed'); }
+
+function renderWorkOrders(){
+  const body = document.getElementById('wo-body');
+  document.getElementById('nav-wo-count').textContent = DATA.workOrders.filter(w=>w.status!=='completed').length;
+  if(DATA.workOrders.length===0){ body.innerHTML=''; document.getElementById('wo-empty').style.display='block'; return; }
+  document.getElementById('wo-empty').style.display='none';
+  body.innerHTML = DATA.workOrders.slice().sort((a,b)=> (a.dueDate||'9999').localeCompare(b.dueDate||'9999')).map(w=>{
+    const asset = assetById(w.assetId);
+    return `<tr>
+      <td><span class="tag">${w.id}</span></td>
+      <td>${w.title}</td>
+      <td>${asset? asset.name : '—'}</td>
+      <td style="text-transform:capitalize;">${w.type}</td>
+      <td>${pill(w.priority)}</td>
+      <td>${w.assignedTo}</td>
+      <td>${fmtDate(w.dueDate)}</td>
+      <td><span style="cursor:pointer;" onclick="cycleWOStatus('${w.id}')" title="Click to advance status">${pill(w.status)}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteWO('${w.id}')">Remove</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ---------- PM / MAINTENANCE ---------- */
+function openPMModal(){
+  openModal(`
+    <h3>Schedule maintenance task</h3><div class="modal-sub">Recurring preventive maintenance</div>
+    <div class="field"><label>Asset</label><select id="f-asset">${assetOptions()}</select></div>
+    <div class="field"><label>Task</label><input id="f-task" placeholder="e.g. Belt inspection"></div>
+    <div class="row2">
+      <div class="field"><label>Frequency</label><select id="f-freq"><option>Weekly</option><option>Monthly</option><option>Quarterly</option><option>Annually</option></select></div>
+      <div class="field"><label>Assigned to</label><input id="f-assignee" placeholder="Name"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Last done</label><input id="f-last" type="date"></div>
+      <div class="field"><label>Next due</label><input id="f-next" type="date"></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-accent" onclick="savePM()">Schedule task</button></div>
+  `);
+}
+function savePM(){
+  const task = document.getElementById('f-task').value.trim();
+  if(!task){ showToast('Task name is required'); return; }
+  DATA.pmTasks.push({
+    id: nextId('PM','pm'), assetId: document.getElementById('f-asset').value, task,
+    frequency: document.getElementById('f-freq').value,
+    assignedTo: document.getElementById('f-assignee').value.trim() || 'Unassigned',
+    lastDone: document.getElementById('f-last').value || '',
+    nextDue: document.getElementById('f-next').value || ''
+  });
+  persist(); closeModal(); renderAll(); showToast('Maintenance task scheduled');
+}
+function deletePM(id){ DATA.pmTasks = DATA.pmTasks.filter(p=>p.id!==id); persist(); renderAll(); showToast('Task removed'); }
+function renderPM(){
+  const body = document.getElementById('pm-body');
+  const overdue = DATA.pmTasks.filter(p=>p.nextDue && daysUntil(p.nextDue)<0).length;
+  document.getElementById('nav-pm-count').textContent = overdue || DATA.pmTasks.length;
+  document.querySelector('[data-view="maintenance"]').classList.toggle('critical', overdue>0);
+  if(DATA.pmTasks.length===0){ body.innerHTML=''; document.getElementById('pm-empty').style.display='block'; return; }
+  document.getElementById('pm-empty').style.display='none';
+  body.innerHTML = DATA.pmTasks.map(p=>{
+    const asset = assetById(p.assetId);
+    const overdueFlag = p.nextDue && daysUntil(p.nextDue)<0;
+    return `<tr>
+      <td>${asset? asset.name : '—'}</td>
+      <td>${p.task}</td>
+      <td>${p.frequency}</td>
+      <td>${fmtDate(p.lastDone)}</td>
+      <td>${overdueFlag? '<span class="pill crit">'+fmtDate(p.nextDue)+' overdue</span>' : fmtDate(p.nextDue)}</td>
+      <td>${p.assignedTo}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deletePM('${p.id}')">Remove</button></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ---------- PROJECTS ---------- */
+function openProjectModal(){
+  openModal(`
+    <h3>New project</h3><div class="modal-sub">Track a capital works or multi-step initiative</div>
+    <div class="field"><label>Project name</label><input id="f-name" placeholder="e.g. Lift modernization"></div>
+    <div class="row2">
+      <div class="field"><label>Start date</label><input id="f-start" type="date"></div>
+      <div class="field"><label>End date</label><input id="f-end" type="date"></div>
+    </div>
+    <div class="field"><label>Budget (R)</label><input id="f-budget" type="number" placeholder="0"></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-accent" onclick="saveProject()">Create project</button></div>
+  `);
+}
+function saveProject(){
+  const name = document.getElementById('f-name').value.trim();
+  if(!name){ showToast('Project name is required'); return; }
+  DATA.projects.push({
+    id: nextId('PRJ','proj'), name, status:'in_progress',
+    startDate: document.getElementById('f-start').value || '',
+    endDate: document.getElementById('f-end').value || '',
+    budget: Number(document.getElementById('f-budget').value)||0,
+    tasks: []
+  });
+  persist(); closeModal(); renderAll(); showToast('Project created');
+}
+function addProjectTask(projId){
+  const name = prompt('Task name');
+  if(!name) return;
+  const proj = DATA.projects.find(p=>p.id===projId);
+  proj.tasks.push({id:'t'+Date.now(), name, done:false});
+  persist(); renderAll();
+}
+function toggleTask(projId, taskId){
+  const proj = DATA.projects.find(p=>p.id===projId);
+  const t = proj.tasks.find(t=>t.id===taskId);
+  t.done = !t.done;
+  persist(); renderAll();
+}
+function deleteProject(id){ DATA.projects = DATA.projects.filter(p=>p.id!==id); persist(); renderAll(); showToast('Project removed'); }
+function renderProjects(){
+  const list = document.getElementById('projects-list');
+  document.getElementById('nav-proj-count').textContent = DATA.projects.filter(p=>p.status!=='completed').length;
+  document.getElementById('projects-empty').style.display = DATA.projects.length===0 ? 'block' : 'none';
+  list.innerHTML = DATA.projects.map(p=>{
+    const done = p.tasks.filter(t=>t.done).length;
+    const pct = p.tasks.length ? Math.round(done/p.tasks.length*100) : 0;
+    return `<div class="panel">
+      <div class="panel-head">
+        <div><h2><span class="tag">${p.id}</span> &nbsp;${p.name}</h2><div class="sub">${fmtDate(p.startDate)} → ${fmtDate(p.endDate)} · Budget ${fmtMoney(p.budget)}</div></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-ghost btn-sm" onclick="addProjectTask('${p.id}')">+ Task</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">Remove</button>
+        </div>
+      </div>
+      <div class="bar-row" style="grid-template-columns:110px 1fr 40px;margin-bottom:12px;">
+        <span>Progress</span><div class="bar-track"><div class="bar-fill" style="width:${pct}%;"></div></div><span>${pct}%</span>
+      </div>
+      <div class="checklist">
+        ${p.tasks.length? p.tasks.map(t=>`<div class="item ${t.done?'done':''}"><input type="checkbox" ${t.done?'checked':''} onchange="toggleTask('${p.id}','${t.id}')"><span class="t">${t.name}</span></div>`).join('') : '<div style="color:var(--ink-soft);font-size:12.5px;padding:4px 2px;">No tasks yet — add milestones to track progress.</div>'}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+/* ---------- OHSA: incidents & inspections ---------- */
+function openIncidentModal(){
+  openModal(`
+    <h3>Report incident</h3><div class="modal-sub">Occupational health &amp; safety incident record</div>
+    <div class="row2">
+      <div class="field"><label>Date</label><input id="f-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      <div class="field"><label>Type</label><input id="f-type" placeholder="e.g. Near miss, Injury, Spill"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Location</label><input id="f-loc" placeholder="e.g. Building B – Loading bay"></div>
+      <div class="field"><label>Severity</label><select id="f-sev"><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
+    </div>
+    <div class="field"><label>Reported by</label><input id="f-reporter" placeholder="Name"></div>
+    <div class="field"><label>Description</label><textarea id="f-desc" placeholder="What happened"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-accent" onclick="saveIncident()">Report incident</button></div>
+  `);
+}
+function saveIncident(){
+  const type = document.getElementById('f-type').value.trim();
+  if(!type){ showToast('Incident type is required'); return; }
+  DATA.incidents.push({
+    id: nextId('INC','inc'), date: document.getElementById('f-date').value, type,
+    location: document.getElementById('f-loc').value.trim() || '—',
+    severity: document.getElementById('f-sev').value, status:'open',
+    reportedBy: document.getElementById('f-reporter').value.trim() || '—',
+    description: document.getElementById('f-desc').value.trim()
+  });
+  persist(); closeModal(); renderAll(); showToast('Incident reported');
+}
+function closeIncident(id){ const inc = DATA.incidents.find(i=>i.id===id); inc.status = inc.status==='open'?'closed':'open'; persist(); renderAll(); }
+function deleteIncident(id){ DATA.incidents = DATA.incidents.filter(i=>i.id!==id); persist(); renderAll(); showToast('Incident removed'); }
+
+function openInspectionModal(){
+  openModal(`
+    <h3>Log inspection</h3><div class="modal-sub">Safety walkthrough record</div>
+    <div class="row2">
+      <div class="field"><label>Area</label><input id="f-area" placeholder="e.g. Building A – Fire escapes"></div>
+      <div class="field"><label>Date</label><input id="f-date" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Inspector</label><input id="f-inspector" placeholder="Name"></div>
+      <div class="field"><label>Result</label><select id="f-result"><option value="pass">Pass</option><option value="fail">Fail</option></select></div>
+    </div>
+    <div class="field"><label>Notes</label><textarea id="f-notes" placeholder="Findings"></textarea></div>
+    <div class="modal-actions"><button class="btn btn-ghost" onclick="closeModal()">Cancel</button><button class="btn btn-accent" onclick="saveInspection()">Log inspection</button></div>
+  `);
+}
+function saveInspection(){
+  const area = document.getElementById('f-area').value.trim();
+  if(!area){ showToast('Area is required'); return; }
+  DATA.inspections.push({
+    id: nextId('INSP','insp'), area, date: document.getElementById('f-date').value,
+    inspector: document.getElementById('f-inspector').value.trim() || '—',
+    result: document.getElementById('f-result').value,
+    notes: document.getElementById('f-notes').value.trim()
+  });
+  persist(); closeModal(); renderAll(); showToast('Inspection logged');
+}
+function deleteInspection(id){ DATA.inspections = DATA.inspections.filter(i=>i.id!==id); persist(); renderAll(); showToast('Inspection removed'); }
+
+function renderOHSA(){
+  document.getElementById('nav-ohsa-count').textContent = DATA.incidents.filter(i=>i.status==='open').length;
+  document.querySelector('[data-view="ohsa"]').classList.toggle('critical', DATA.incidents.some(i=>i.status==='open' && (i.severity==='high'||i.severity==='critical')));
+
+  const incBody = document.getElementById('incidents-body');
+  document.getElementById('incidents-empty').style.display = DATA.incidents.length===0 ? 'block' : 'none';
+  incBody.innerHTML = DATA.incidents.slice().reverse().map(i=>`
+    <tr>
+      <td><span class="tag">${i.id}</span></td>
+      <td>${fmtDate(i.date)}</td>
+      <td>${i.type}</td>
+      <td>${i.location}</td>
+      <td>${pill(i.severity)}</td>
+      <td><span style="cursor:pointer;" onclick="closeIncident('${i.id}')" title="Click to toggle">${pill(i.status)}</span></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteIncident('${i.id}')">Remove</button></td>
+    </tr>`).join('');
+
+  const inspBody = document.getElementById('inspections-body');
+  document.getElementById('inspections-empty').style.display = DATA.inspections.length===0 ? 'block' : 'none';
+  inspBody.innerHTML = DATA.inspections.slice().reverse().map(i=>`
+    <tr>
+      <td><span class="tag">${i.id}</span></td>
+      <td>${i.area}</td>
+      <td>${fmtDate(i.date)}</td>
+      <td>${i.inspector}</td>
+      <td>${pill(i.result)}</td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteInspection('${i.id}')">Remove</button></td>
+    </tr>`).join('');
+}
+
+/* ---------- OVERVIEW ---------- */
+function gaugeStyle(pct, color){
+  return `background:conic-gradient(${color} ${pct*3.6}deg, #E7EAE5 0deg);`;
+}
+function renderOverview(){
+  document.getElementById('overview-date').textContent = new Date().toLocaleDateString('en-ZA',{weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+  const openWO = DATA.workOrders.filter(w=>w.status!=='completed').length;
+  const overdueWO = DATA.workOrders.filter(w=>w.status!=='completed' && w.dueDate && daysUntil(w.dueDate)<0).length;
+  const downAssets = DATA.assets.filter(a=>a.status==='down').length;
+  const openIncidents = DATA.incidents.filter(i=>i.status==='open').length;
+
+  const kpis = [
+    {label:'Open work orders', value:openWO, pct: DATA.workOrders.length? Math.round(openWO/DATA.workOrders.length*100):0, color:'var(--info)'},
+    {label:'Overdue work', value:overdueWO, pct: openWO? Math.round(overdueWO/Math.max(openWO,1)*100):0, color:'var(--crit)'},
+    {label:'Assets down', value:downAssets, pct: DATA.assets.length? Math.round(downAssets/DATA.assets.length*100):0, color:'var(--warn)'},
+    {label:'Open safety items', value:openIncidents, pct: DATA.incidents.length? Math.round(openIncidents/DATA.incidents.length*100):0, color:'var(--crit)'},
+  ];
+  document.getElementById('kpi-row').innerHTML = kpis.map(k=>`
+    <div class="kpi">
+      <div class="gauge" style="${gaugeStyle(k.pct,k.color)}"><span>${k.value}</span></div>
+      <div><div class="kpi-label">${k.label}</div><div class="kpi-value">${k.value}</div></div>
+    </div>`).join('');
+
+  const upcoming = DATA.workOrders.filter(w=>w.status!=='completed').slice().sort((a,b)=>(a.dueDate||'9999').localeCompare(b.dueDate||'9999')).slice(0,6);
+  document.getElementById('overview-wo-body').innerHTML = upcoming.length ? upcoming.map(w=>{
+    const asset = assetById(w.assetId);
+    return `<tr><td><span class="tag">${w.id}</span></td><td>${w.title}</td><td>${asset?asset.name:'—'}</td><td>${pill(w.priority)}</td><td>${fmtDate(w.dueDate)}</td><td>${pill(w.status)}</td></tr>`;
+  }).join('') : `<tr><td colspan="6" style="color:var(--ink-soft);text-align:center;padding:20px;">No open work orders</td></tr>`;
+
+  const statusCounts = {operational:0, maintenance:0, down:0};
+  DATA.assets.forEach(a=>{ statusCounts[a.status] = (statusCounts[a.status]||0)+1; });
+  const total = DATA.assets.length || 1;
+  document.getElementById('asset-status-bars').innerHTML = Object.entries(statusCounts).map(([k,v])=>`
+    <div class="bar-row"><span style="text-transform:capitalize;">${k}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round(v/total*100)}%;background:${k==='operational'?'var(--good)':k==='down'?'var(--crit)':'var(--warn)'};"></div></div><span>${v}</span></div>
+  `).join('');
+
+  const safetyList = DATA.incidents.filter(i=>i.status==='open').slice(0,5);
+  document.getElementById('overview-safety-list').innerHTML = safetyList.length ? safetyList.map(i=>`
+    <div class="row"><div><div class="t">${i.type}</div><div class="s">${i.location} · ${fmtDate(i.date)}</div></div>${pill(i.severity)}</div>
+  `).join('') : `<div style="color:var(--ink-soft);font-size:12.5px;padding:8px 2px;">No open safety items</div>`;
+}
+
+/* ---------- REPORTS ---------- */
+function renderReports(){
+  const statuses = ['open','in_progress','completed','on_hold'];
+  const counts = {}; statuses.forEach(s=>counts[s]=0);
+  DATA.workOrders.forEach(w=>counts[w.status]=(counts[w.status]||0)+1);
+  const max = Math.max(1, ...Object.values(counts));
+  document.getElementById('report-wo-bars').innerHTML = statuses.map(s=>`
+    <div class="bar-row"><span style="text-transform:capitalize;">${s.replace('_',' ')}</span><div class="bar-track"><div class="bar-fill" style="width:${Math.round(counts[s]/max*100)}%;"></div></div><span>${counts[s]}</span></div>
+  `).join('');
+
+  const totalValue = DATA.assets.reduce((s,a)=>s+(a.value||0),0);
+  const figures = [
+    ['Total assets', DATA.assets.length],
+    ['Total asset value', fmtMoney(totalValue)],
+    ['Active projects', DATA.projects.filter(p=>p.status!=='completed').length],
+    ['PM tasks scheduled', DATA.pmTasks.length],
+    ['Incidents (all time)', DATA.incidents.length],
+    ['Inspections logged', DATA.inspections.length],
+  ];
+  document.getElementById('report-figures').innerHTML = figures.map(([l,v])=>`<div class="row"><span class="t">${l}</span><span style="font-family:var(--font-mono);">${v}</span></div>`).join('');
+
+  const overdueRows = [];
+  DATA.workOrders.forEach(w=>{ if(w.status!=='completed' && w.dueDate && daysUntil(w.dueDate)<0){ const a=assetById(w.assetId); overdueRows.push(`<tr><td>Work order</td><td><span class="tag">${w.id}</span></td><td>${w.title}</td><td>${a?a.name:'—'}</td><td>${fmtDate(w.dueDate)}</td></tr>`);} });
+  DATA.pmTasks.forEach(p=>{ if(p.nextDue && daysUntil(p.nextDue)<0){ const a=assetById(p.assetId); overdueRows.push(`<tr><td>Maintenance</td><td><span class="tag">${p.id}</span></td><td>${p.task}</td><td>${a?a.name:'—'}</td><td>${fmtDate(p.nextDue)}</td></tr>`);} });
+  document.getElementById('report-overdue-body').innerHTML = overdueRows.join('');
+  document.getElementById('report-overdue-empty').style.display = overdueRows.length===0 ? 'block' : 'none';
+}
+
+/* ---------- SETTINGS / EMAIL ---------- */
+function saveEmail(){
+  DATA.msEmail = document.getElementById('ms-email-input').value.trim();
+  persist(); showToast('Saved');
+}
+function saveOrgName(){
+  DATA.orgName = document.getElementById('org-name-input').value.trim();
+  persist(); showToast('Saved');
+  renderTopbar();
+}
+async function resetData(){
+  if(!confirm('This will permanently delete all assets, work orders, maintenance, projects and safety records. Continue?')) return;
+  DATA = {orgName:DATA.orgName, msEmail:DATA.msEmail, assets:[], workOrders:[], pmTasks:[], projects:[], incidents:[], inspections:[], seq:{asset:0,wo:0,pm:0,proj:0,inc:0,insp:0}};
+  await persist(); renderAll(); showToast('All data cleared');
+}
+function renderTopbar(){
+  document.getElementById('ms-email-input').value = DATA.msEmail || '';
+  document.getElementById('org-name-input').value = DATA.orgName || '';
+}
+
+/* ---------- global search ---------- */
+document.getElementById('global-search').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){
+    const q = e.target.value.trim().toLowerCase();
+    if(!q) return;
+    const asset = DATA.assets.find(a=>a.id.toLowerCase()===q || a.name.toLowerCase().includes(q) || a.location.toLowerCase().includes(q));
+    const wo = DATA.workOrders.find(w=>w.id.toLowerCase()===q);
+    if(wo){ document.querySelector('[data-view="workorders"]').click(); showToast('Found ' + wo.id); }
+    else if(asset){ document.querySelector('[data-view="assets"]').click(); showToast('Found ' + asset.id); }
+    else { showToast('No match found'); }
+  }
+});
+
+/* ---------- render all ---------- */
+function renderAll(){
+  renderOverview();
+  renderAssets();
+  renderWorkOrders();
+  renderPM();
+  renderProjects();
+  renderOHSA();
+  renderReports();
+  renderTopbar();
+}
+
+loadData();
+</script>
+</body>
+</html>
